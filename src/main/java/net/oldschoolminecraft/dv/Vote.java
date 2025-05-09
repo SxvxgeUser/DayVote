@@ -4,7 +4,7 @@ import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
 
-public class Vote
+public class Vote 
 {
     private int yes, no;
     private ArrayList<String> voters;
@@ -61,8 +61,7 @@ public class Vote
         return (int) calculatePercentage(no, voters.size());
     }
 
-    private double calculatePercentage(double obtained, double total)
-    {
+    private double calculatePercentage(double obtained, double total) {
         return obtained * 100 / total;
     }
 }
