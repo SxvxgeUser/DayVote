@@ -12,9 +12,10 @@ import java.util.concurrent.TimeUnit;
 
 public class DayVote extends JavaPlugin {
 
+
     private static DayVote instance;
 
-    private VoteConfig config;
+    public VoteConfig config;
     private Vote vote;
     private long lastVote;
     private long lastStartVote;
@@ -22,18 +23,20 @@ public class DayVote extends JavaPlugin {
     private long lastRainStartVote;
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     public DayVoteType voteType;
+    public boolean shouldWeatherBeOn = false;
 
     @Override
     public void onEnable()
     {
         instance = this;
         config = new VoteConfig(new File(getDataFolder(), "config.yml"));
-        lastVote = Math.max(0, UnixTime.now() - (int)config.getConfigOption("cooldownSeconds"));
-        lastRainVote = Math.max(0, UnixTime.now() - (int)config.getConfigOption("rainCooldownSeconds"));
+        lastVote = Math.max(0, UnixTime.now() - (long)config.getConfigOption("cooldownSeconds"));
+        lastRainVote = Math.max(0, UnixTime.now() - (long)config.getConfigOption("rainCooldownSeconds"));
         voteType = DayVoteType.NONE;
         getCommand("vote").setExecutor(new VoteCommand());
+        Bukkit.getServer().getPluginManager().registerEvents(new WeatherHandler(), this);
 
-        System.out.println("DayVote version: " + getDescription().getVersion() + " enabled!");
+        System.out.println("DayVote version: "+ getDescription().getVersion() + " enabled!");
         System.out.println("Last Vote Time: " + lastVote);
         System.out.println("Last Rain Vote Time: " + lastRainVote);
         System.out.println("Current Unix Time: " + UnixTime.now());
@@ -47,11 +50,10 @@ public class DayVote extends JavaPlugin {
     public void onDisable()
     {
         forceCancelVote();
-        System.out.println("DayVote version: " + getDescription().getVersion() + " disabled!");
+        System.out.println("DayVote version: "+ getDescription().getVersion() + " disabled!");
     }
 
-    public Vote getActiveVote()
-    {
+    public Vote getActiveVote() {
         return vote;
     }
 
@@ -77,44 +79,44 @@ public class DayVote extends JavaPlugin {
     public synchronized boolean canStartVote()
     {
         long timeSinceLastVote = (UnixTime.now() - lastVote);
-        int cooldown = (int) config.getConfigOption("cooldownSeconds");
+        long cooldown = (long) config.getConfigOption("cooldownSeconds");
         return timeSinceLastVote >= cooldown;
     }
 
-    public int getCooldownTimeLeft()
+    public long getCooldownTimeLeft()
     {
         long timeSinceLastVote = (UnixTime.now() - lastVote);
-        int cooldown = (int) config.getConfigOption("cooldownSeconds");
-        return (int) Math.max(0, cooldown-timeSinceLastVote);
+        long cooldown = (long) config.getConfigOption("cooldownSeconds");
+        return (long) Math.max(0, cooldown-timeSinceLastVote);
     }
 
-    public int getVoteTimeLeft()
+    public long getVoteTimeLeft()
     {
         long timeSinceLastVoteStart = (UnixTime.now() - lastStartVote);
-        int voteDurationSeconds = (int) config.getConfigOption("voteDurationSeconds");
-        return (int) Math.max(0, voteDurationSeconds - timeSinceLastVoteStart);
+        long voteDurationSeconds = (long) config.getConfigOption("voteDurationSeconds");
+        return (long) Math.max(0, voteDurationSeconds - timeSinceLastVoteStart);
     }
 
 //  RAIN
     public synchronized boolean canStartRainVote()
     {
         long timeSinceLastRainVote = (UnixTime.now() - lastRainVote);
-        int cooldown = (int) config.getConfigOption("rainCooldownSeconds");
+        long cooldown = (long) config.getConfigOption("rainCooldownSeconds");
         return timeSinceLastRainVote >= cooldown;
     }
 
-    public int getRainCooldownTimeLeft()
+    public long getRainCooldownTimeLeft()
     {
         long timeSinceLastRainVote = (UnixTime.now() - lastRainVote);
-        int cooldown = (int) config.getConfigOption("rainCooldownSeconds");
-        return (int) Math.max(0, cooldown-timeSinceLastRainVote);
+        long cooldown = (long) config.getConfigOption("rainCooldownSeconds");
+        return (long) Math.max(0, cooldown-timeSinceLastRainVote);
     }
 
-    public int getRainVoteTimeLeft()
+    public long getRainVoteTimeLeft()
     {
         long timeSinceLastRainVoteStart = (UnixTime.now() - lastRainStartVote);
-        int voteDurationSeconds = (int) config.getConfigOption("voteDurationSeconds");
-        return (int) Math.max(0, voteDurationSeconds-timeSinceLastRainVoteStart);
+        long voteDurationSeconds = (long) config.getConfigOption("voteDurationSeconds");
+        return (long) Math.max(0, voteDurationSeconds-timeSinceLastRainVoteStart);
     }
 
     public String formatTime(final long seconds)
@@ -130,7 +132,7 @@ public class DayVote extends JavaPlugin {
         vote = new Vote();
         setVoteType(DayVoteType.DAY);
         broadcast(String.valueOf(config.getConfigOption("messages.started")));
-        int voteDurationSeconds = (int) config.getConfigOption("voteDurationSeconds");
+        long voteDurationSeconds = (long) config.getConfigOption("voteDurationSeconds");
         scheduler.schedule(this::processDayVote, voteDurationSeconds, TimeUnit.SECONDS);
         lastStartVote = Math.max(0, UnixTime.now());
         return vote;
@@ -142,7 +144,7 @@ public class DayVote extends JavaPlugin {
         vote = new Vote();
         setVoteType(DayVoteType.RAIN);
         broadcast(String.valueOf(config.getConfigOption("messages.startedRain")));
-        int voteDurationSeconds = (int) config.getConfigOption("voteDurationSeconds");
+        long voteDurationSeconds = (long) config.getConfigOption("voteDurationSeconds");
         scheduler.schedule(this::processRainVote, voteDurationSeconds, TimeUnit.SECONDS);
         lastRainStartVote = Math.max(0, UnixTime.now());
         return vote;
@@ -181,6 +183,7 @@ public class DayVote extends JavaPlugin {
             } else {
                 int rainDuration = (int) config.getConfigOption("rainDurationTicks");
                 broadcast(String.valueOf(config.getConfigOption("messages.succeededRain")));
+                shouldWeatherBeOn = true;
                 Bukkit.getServer().getWorld("world").setStorm(true);
                 Bukkit.getServer().getWorld("world").setWeatherDuration(rainDuration);
                 if (config.getConfigOption("allowThunder").equals(true))
@@ -196,6 +199,7 @@ public class DayVote extends JavaPlugin {
 
     private synchronized void resetDayVote()
     {
+//        scheduler.shutdown(); //EXPERIMENTAL! FUNCTION HAS NOT BEEN TESTED YET
         vote = null;
         setVoteType(DayVoteType.NONE);
         lastVote = Math.max(0, UnixTime.now());
@@ -203,6 +207,7 @@ public class DayVote extends JavaPlugin {
 
     private synchronized void resetRainVote()
     {
+//        scheduler.shutdown(); //EXPERIMENTAL! FUNCTION HAS NOT BEEN TESTED YET
         vote = null;
         setVoteType(DayVoteType.NONE);
         lastRainVote = Math.max(0, UnixTime.now());
